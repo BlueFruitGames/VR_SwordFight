@@ -9,7 +9,7 @@
 // Sets default values
 AVRPlayerCharacter::AVRPlayerCharacter()
 {
- 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
+	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
 	VRParent = CreateDefaultSubobject<USceneComponent>(TEXT("VRParent"));
@@ -23,7 +23,9 @@ AVRPlayerCharacter::AVRPlayerCharacter()
 void AVRPlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-	
+	if (VRParent) {
+		OriginalRotation = VRParent->GetRelativeRotation();
+	}
 	if (CameraComponent) {
 		LastCameraLocation = CameraComponent->GetRelativeLocation();
 	}
@@ -41,8 +43,11 @@ void AVRPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
+	PlayerInputComponent->BindAction(TEXT("SnapToOriginalRotation"), EInputEvent::IE_Pressed, this, &AVRPlayerCharacter::SnapToOriginalRotation);
+
 	PlayerInputComponent->BindAxis(TEXT("MoveForward"), this, &AVRPlayerCharacter::MoveForward);
 	PlayerInputComponent->BindAxis(TEXT("MoveRight"), this, &AVRPlayerCharacter::MoveRight);
+	PlayerInputComponent->BindAxis(TEXT("Rotate"), this, &AVRPlayerCharacter::Rotate);
 }
 
 void AVRPlayerCharacter::MoveForward(float AxisValue)
@@ -56,6 +61,28 @@ void AVRPlayerCharacter::MoveRight(float AxisValue)
 {
 	if (CameraComponent) {
 		AddMovementInput(CameraComponent->GetRightVector(), AxisValue);
+	}
+}
+
+void AVRPlayerCharacter::Rotate(float AxisValue) {
+	float Sign = FMath::Sign(AxisValue);
+	float AbsoluteValue = FMath::Abs(AxisValue);
+	if (AbsoluteValue > RotationThreshold) {
+		if (VRParent) {
+			if (bCanRotate) {
+				VRParent->AddLocalRotation(FQuat(GetActorUpVector(), FMath::DegreesToRadians(Sign * RotationAmount)));
+				bCanRotate = false;
+			}
+		}
+	}
+	else {
+		bCanRotate = true;
+	}
+}
+
+void AVRPlayerCharacter::SnapToOriginalRotation() {
+	if (VRParent) {
+		VRParent->SetRelativeRotation(OriginalRotation);
 	}
 }
 
