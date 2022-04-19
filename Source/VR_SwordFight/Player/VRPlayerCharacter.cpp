@@ -3,8 +3,11 @@
 
 #include "VRPlayerCharacter.h"
 
+#include "VRHandComponent.h"
+
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/PostProcessComponent.h"
 
 // Sets default values
 AVRPlayerCharacter::AVRPlayerCharacter()
@@ -17,18 +20,25 @@ AVRPlayerCharacter::AVRPlayerCharacter()
 
 	CameraComponent = CreateDefaultSubobject<UCameraComponent>(TEXT("CameraComponent"));
 	CameraComponent->SetupAttachment(VRParent);
+
+	PostProcessComponent = CreateDefaultSubobject<UPostProcessComponent>(TEXT("PostProcessComponent"));
+	PostProcessComponent->SetupAttachment(RootComponent);
 }
 
 // Called when the game starts or when spawned
 void AVRPlayerCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+	SetupBlinkerMaterial();
 	if (VRParent) {
 		OriginalRotation = VRParent->GetRelativeRotation();
 	}
 	if (CameraComponent) {
 		LastCameraLocation = CameraComponent->GetRelativeLocation();
 	}
+
+	HandLeft = UVRHandComponent::MAKE(this, VRParent, EControllerHand::Left, HandSkeletalMesh, HandOffset, HandRotation, HandScale);
+	HandRight = UVRHandComponent::MAKE(this, VRParent, EControllerHand::Right, HandSkeletalMesh, HandOffset, HandRotation, HandScale);
 }
 
 // Called every frame
@@ -36,6 +46,7 @@ void AVRPlayerCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	AdjustColliderLocation();
+	UpdateBlinker();
 }
 
 // Called to bind functionality to input
@@ -96,4 +107,20 @@ void AVRPlayerCharacter::AdjustColliderLocation() {
 		VRParent->AddWorldOffset(-CameraOffset);
 	}
 	LastCameraLocation = CurrentCameraLocation;
+}
+
+void AVRPlayerCharacter::SetupBlinkerMaterial() {
+	DynamicBlinkerMaterial = UMaterialInstanceDynamic::Create(BlinkerMaterial, this);
+	if (PostProcessComponent) {
+		PostProcessComponent->AddOrUpdateBlendable(DynamicBlinkerMaterial);
+		//DynamicBlinkerMaterial->SetScalarParameterValue(TEXT("Radius"), 0);
+	}
+}
+
+void AVRPlayerCharacter::UpdateBlinker() {
+	if (DynamicBlinkerMaterial && BlinkerCurve) {
+		float Speed = GetVelocity().Length();
+		float Radius = BlinkerCurve->GetFloatValue(Speed);
+		DynamicBlinkerMaterial->SetScalarParameterValue(TEXT("Radius"), Radius);
+	}
 }
